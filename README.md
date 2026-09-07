@@ -2,29 +2,29 @@
 
 Official code and data of the paper [Are We Measuring Strategy or Phrasing? The Gap Between Surface- and Approach-Level Diversity in LLM Math Reasoning](https://arxiv.org/abs/2606.29985).
 
-### News
+## 📰 News
 
-[2026.06.28] Our paper has been accepted at the ICML 2026 AI4Math Workshop as a **Spotlight** paper!!
+- 📦 **[2026.09.07]** Code and the multi-approach problem set are released in this repository.
+- 🎉 **[2026.08.21]** Our paper is accepted to **EMNLP 2026** as a main conference paper!
+- 🏆 **[2026.06.28]** Our paper is accepted to the **ICML 2026 AI4Math Workshop** as a **Spotlight** paper!
 
-[2026.08.21] Our paper will be presented at **EMNLP 2026** as a main conference paper!!
-
-## Overview
+## 🔍 Overview
 
 ![main_figure](./img/figure.png)
 
-What do we mean by 'diversity' in LLM math reasoning? Motivated by recent findings on mode collapse of RLVR and the effectiveness of diversity during test-time scaling, a number of works are focusing on diversity-aware training algorithms.
-However, we find that these methods typically operationalize diversity by surface-level diversity—such as lexical overlap, embedding distance, or symbolic representations like the ratio of unique equations.
-This trend leaves open a more fundamental question - *are models producing surface-level variants of the same strategy, or exploring genuinely different ways to solve the problem?*
+What do we mean by *diversity* in LLM math reasoning? Motivated by recent findings on mode collapse under RLVR and on the value of diverse candidates for test-time scaling, a growing number of works propose diversity-aware training algorithms.
+These methods, however, typically operationalize diversity with surface-level signals such as lexical overlap, embedding distance, or the ratio of distinct equations.
+This leaves open a more fundamental question: *are models exploring genuinely different ways to solve a problem, or merely producing surface-level variants of the same strategy?*, or in terms of diversity metrics, **are we measuring strategy or phrasing?**
 
-To answer this question, we introduce **approach-level diversity**: variation in the underlying solution strategies used to arrive at the correct answer, beyond differences in wording, notation, or exposition.
-Our analysis reveals that conventional, widely used diversity metrics are poor proxies for approach-level diversity, and optimizing such measures does not improve approach-level diversity: rather, policies tend to generate surface-diverse solutions within a narrower set of approaches. Refer to [our paper](https://arxiv.org/abs/2606.29985) if you are interested in our findings!
+To answer it, we introduce **approach-level diversity**: variation in the underlying solution strategies used to reach a correct answer, beyond differences in wording, notation, or exposition, and measure it with a human-calibrated LLM judge and a set of math problems verified to admit multiple distinct approaches.
+Our analysis shows that conventional diversity metrics are poor proxies for approach-level diversity, and that optimizing them does not broaden the strategies a model explores. Please refer to [our paper](https://arxiv.org/abs/2606.29985) for the full findings!
 
-This repository contains the code and data used in our experiments. It contains three main components:
-1. **Multiple-approach feasible problem set**: ~2500 multi-approach feasible math problems filtered from the MATH training dataset.
-2. **Problem filtering pipeline**: Four-stage filtering pipeline for collecting multiple-approach feasible problems.
-3. **Coverage evaluation script**: Python script for approach-coverage analysis of generated solutions.
+This repository contains the code and data used in our experiments:
+1. 📚 **Multi-approach feasible problem set**: 2,467 math problems filtered from the MATH training set that admit three or more distinct, verified solution approaches.
+2. 🔧 **Problem filtering pipeline**: the four-stage pipeline used to collect the problem set.
+3. 📊 **Coverage evaluation**: the LLM clustering judge and the Coverage@N estimator for approach-coverage analysis of generated solutions.
 
-## Dataset
+## 📚 Dataset
 
 The multi-approach feasible problem set (`data/`) contains 2,467 problems filtered from the MATH training set by the pipeline in `filtering/`.
 
@@ -53,7 +53,7 @@ Each line is one problem together with its feasible approach plans and the uniqu
 
 Only `problem` and `answer` are needed for coverage evaluation.
 
-## Usage
+## 🚀 Usage
 
 `pip install -r requirements.txt`, then put your OpenAI key in `.env` (`cp .env.example .env`). Correctness scoring and the feasibility check use a locally served Qwen3-4B (`vllm serve Qwen/Qwen3-4B --port 9000`).
 
@@ -128,10 +128,10 @@ python filtering/uniqueness_judge.py \
 
 Useful options for stage 4: `--realtime` (synchronous calls instead of the Batch API), `--num-votes 3` (majority vote), `--batch-id` / `--raw-results-file` (resume without re-querying), `--eval` (score the judge against a `label` field of `positive` / `negative`).
 
-## Repository Structure
+## 🗂️ Repository Structure
 
 ```
-coverage-and-filtering/
+approach-diversity/
 ├── data/                            # Multi-approach feasible problem set (train / eval)
 ├── coverage/                        # Coverage@N evaluation
 │   ├── evaluate.py                  # Entry point: verify -> cluster -> Coverage@N
@@ -152,7 +152,7 @@ coverage-and-filtering/
 └── requirements.txt
 ```
 
-## Citation
+## 📝 Citation
 
 ```bibtex
 @misc{lee2026measuringstrategyphrasinggap,
