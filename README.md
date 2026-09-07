@@ -1,210 +1,172 @@
-# Coverage & Multi-Approach Problem Filtering
+# Are We Measuring Strategy or Phrasing? The Gap Between Surface- and Approach-Level Diversity in LLM Math Reasoning
 
-Self-contained package for multi-approach problem filtering (approach generation → Qwen3-4B feasibility check → uniqueness judge), LLM-judge-based solution clustering, and Coverage@N measurement.
+Official code and data of the paper [Are We Measuring Strategy or Phrasing? The Gap Between Surface- and Approach-Level Diversity in LLM Math Reasoning](https://arxiv.org/abs/2606.29985).
 
-## Directory Structure
+### News
 
-```
-coverage-and-filtering/
-├── README.md
-├── requirements.txt
-├── .env.example                     # Copy to .env and set OPENAI_API_KEY (single place for all scripts)
-├── .gitignore
-├── coverage/                        # Approach coverage analysis pipeline
-│   ├── CLAUDE.md                    # Metric definitions and pipeline documentation
-│   ├── metrics.py                   # Coverage@N estimator (pure functions)
-│   ├── evaluate.py                  # 4-phase pipeline entry point (verify -> cluster -> finalize)
-│   ├── cluster.py                   # LLM judge clustering wrapper (OpenAI Batch API)
-│   ├── feasibility_report.py        # Pre/post checkpoint feasibility comparison report
-│   ├── configs/
-│   │   └── eval_config.yaml         # Sampling / verifier / clustering configuration
-│   └── scripts/
-│       ├── aggregate_results.py     # Aggregate all result JSONL files and compute AUC
-│       ├── aggregate_filtered.py    # Group-wise aggregation on common problem sets
-│       └── filter_by_ncorrect.py    # Filter problems by min n_correct across checkpoints
-├── filtering/                       # Multi-approach problem filtering pipeline
-│   ├── filter_by_avg.py             # Stage 1: difficulty classification (pass@1) + approach count filter
-│   ├── generate_approaches_batch.py # Stage 2: generate K distinct approach plans per problem (OpenAI Batch API)
-│   ├── check_feasible_plans.py      # Stage 3: plan feasibility via Qwen3-4B solver + Qwen3-4B LLM judge (vLLM)
-│   ├── uniqueness_judge.py          # Stage 4: LLM uniqueness judge (>= 3 distinct approaches -> keep)
-│   └── uniqueness_judge_utils.py    # Uniqueness judge prompt, \boxed{n} parsing, cost helpers
-└── evaluate_solutions/              # LLM judge solution clustering
-    ├── verify_solutions.py          # Qwen3-4B LLM-judge correctness scoring -> adds `scores` field
-    ├── sol_diversity_judge.py       # BatchProcessor, RealtimeProcessor, core clustering
-    ├── utils.py                     # Clustering judge system prompt (conservative merging policy)
-    └── scripts/
-        ├── cluster_generations.sh   # OpenAI Batch API clustering launch script
-        ├── llm_judge_eval.sh        # OpenAI API judge evaluation script (batch mode)
-        └── llm_judge_eval_vllm.sh   # vLLM local serving judge evaluation script
-```
+[2026.06.28] Our paper has been accepted at the ICML 2026 AI4Math Workshop as a **Spotlight** paper!!
 
-## Key Components
+[2026.08.21] Our paper will be presented at **EMNLP 2026** as a main conference paper!!
 
-### 1. Coverage Metrics (`coverage/metrics.py`)
+## Overview
 
-Pure function module (no I/O). Computes per-problem Coverage@N from approach label lists:
-- **Coverage@N**: Expected number of distinct approaches in N sampled solutions (analytic unbiased estimator, sampling without replacement from the correct solutions)
-- **Coverage Curve**: Coverage@N at N in {1, 2, 4, 8, 16, 32, 64}; NaN whenever N > n_correct
-- **AUC** (dataset-level, computed by `scripts/aggregate_results.py`): sum over N of the mean Coverage@N across problems
+![main_figure](./img/figure.png)
 
-### 2. Coverage Pipeline (`coverage/evaluate.py`)
+What do we mean by 'diversity' in LLM math reasoning? Motivated by recent findings on mode collapse of RLVR and the effectiveness of diversity during test-time scaling, a number of works are focusing on diversity-aware training algorithms.
+However, we find that these methods typically operationalize diversity by surface-level diversity—such as lexical overlap, embedding distance, or symbolic representations like the ratio of unique equations.
+This trend leaves open a more fundamental question - *are models producing surface-level variants of the same strategy, or exploring genuinely different ways to solve the problem?*
 
-4-phase pipeline for each `(model_checkpoint, eval_set)` pair:
-1. **Verify**: Check all solutions for correctness via vLLM-served verifier
-2. **Build Jobs**: Collect clustering jobs for problems with correct solutions
-3. **Cluster**: Run LLM judge clustering via OpenAI Batch API
-4. **Finalize**: Compute Coverage@N and append to results.jsonl
+To answer this question, we introduce **approach-level diversity**: variation in the underlying solution strategies used to arrive at the correct answer, beyond differences in wording, notation, or exposition.
+Our analysis reveals that conventional, widely used diversity metrics are poor proxies for approach-level diversity, and optimizing such measures does not improve approach-level diversity: rather, policies tend to generate surface-diverse solutions within a narrower set of approaches. Refer to [our paper](https://arxiv.org/abs/2606.29985) if you are interested in our findings!
 
-### 3. Multi-Approach Problem Filtering (`filtering/`)
+This repository contains the code and data used in our experiments. It contains three main components:
+1. **Multiple-approach feasible problem set**: ~2500 multi-approach feasible math problems filtered from the MATH training dataset.
+2. **Problem filtering pipeline**: Four-stage filtering pipeline for collecting multiple-approach feasible problems.
+3. **Coverage evaluation script**: Python script for approach-coverage analysis of generated solutions.
 
-Four stages select problems that admit several genuinely different, feasible solution approaches.
+## Dataset
 
-| Stage | Script | Model | Input → Output |
-|---|---|---|---|
-| 1. Difficulty filter | `filter_by_avg.py` | (pre-computed pass@1) | scored solutions → easy / medium / hard split; `filter_by_analysis()` keeps problems with > 2 approaches |
-| 2. Approach generation | `generate_approaches_batch.py` | OpenAI Batch API | `{problem, answer}` → adds `response.approaches` (K plans: `name`, `core_idea`, `plan[]`) |
-| 3. Feasibility check | `check_feasible_plans.py` | Qwen3-4B solver + Qwen3-4B judge (vLLM) | plans → `feasible_plans/<name>.jsonl` (only approaches with ≥ 1 verified rollout; problems with ≥ 3 feasible approaches) |
-| 4. Uniqueness judge | `uniqueness_judge.py` | OpenAI (default `gpt-5.1`) | feasible plans → `<out>.json` + `<out>_positive.json` (problems judged to have ≥ 3 distinct approaches) |
+The multi-approach feasible problem set (`data/`) contains 2,467 problems filtered from the MATH training set by the pipeline in `filtering/`.
 
-**Stage 3 (Qwen3-4B LLM evaluator).** For each (problem, plan) pair the solver is prompted to follow that plan only. Rollouts are progressive (1, 2, 4, … up to `--n_rollouts`) and stop as soon as one rollout is verified. Verification first tries `math-verify` on the `\boxed{}` answer and falls back to the Qwen3-4B judge (few-shot "correct"/"incorrect" prompt, thinking disabled). Requires a running vLLM server:
+| File | Problems | Description |
+|---|---|---|
+| `data/train.jsonl` | 2,000 | Training split, used for the RLVR / SFT experiments in the paper |
+| `data/eval.jsonl` | 467 | Held-out evaluation split, used for coverage evaluation |
 
-```bash
-vllm serve Qwen/Qwen3-4B --port 9000 --dtype bfloat16 --max-model-len 12288
+Each line is one problem together with its feasible approach plans and the uniqueness-judge verdict:
 
-python filtering/check_feasible_plans.py \
-    --input_file plans_with_approaches.jsonl \
-    --output_file outputs/stage3_feasibility.jsonl \
-    --base_url http://localhost:9000/v1 --verifier-base-url http://localhost:9000/v1 \
-    --model_name Qwen/Qwen3-4B --verifier-model-name Qwen/Qwen3-4B \
-    --n_rollouts 8 --solver-batch-size 8 --n-solver-workers 16 --n-verifier-workers 4
-```
-
-**Stage 4 (uniqueness judge).** The judge sees the problem and its plans and answers with `\boxed{n}`, the number of mechanism-level distinct approaches (prompt in `uniqueness_judge_utils.py`). A problem is *positive* when `n >= 3`.
-
-```bash
-python filtering/uniqueness_judge.py \
-    --input-file outputs/feasible_plans/plans_with_approaches.jsonl \
-    --output-file outputs/stage4_uniqueness.json \
-    --model gpt-5.1 --reasoning-effort low          # Batch API; add --realtime for sync calls
-# options: --num-votes 3 (majority vote), --batch-id / --raw-results-file (resume),
-#          --eval (needs a "label" field: positive/negative), --eval-only
-```
-
-### 4. Solution Clustering Judge (`evaluate_solutions/`)
-
-LLM judge pipeline that clusters given solutions by approach.
-
-**Correctness scoring: `verify_solutions.py`** (Qwen3-4B LLM judge)
-Adds a `scores` field to a generations JSONL (`question`, `answer`, `solutions[]`, optional `pred[]`) by asking a vLLM-served judge whether each solution's final answer is equivalent to the golden answer (few-shot prompt, `Verification: [correct]` / `[incorrect]`).
-```bash
-python evaluate_solutions/verify_solutions.py generations.jsonl \
-    --model-name Qwen/Qwen3-4B --api-base http://localhost:9000/v1   # writes generations_scored.jsonl
-```
-
-**Core file: `sol_diversity_judge.py`**
-- `ClusteringConfig`: Full configuration (model, API settings, chunk size, min_correct, etc.)
-- `CostTracker`: API cost tracking (automatic 50% batch discount)
-- `GPTClient`: OpenAI API calls (realtime + batch mode)
-- `BatchProcessor`: Large-scale clustering via OpenAI Batch API
-  - Stage 1: Split solutions into chunks and cluster each
-  - Stage 2: Merge Stage 1 results into final grouping
-- `RealtimeProcessor`: Realtime API clustering (multi-worker)
-- `grouping_to_labels()`: Convert JSON grouping to per-solution label array
-
-**Prompt (`utils.py`):**
-- `CONSERVATIVE_JSON_SYSTEM_PROMPT` (exported as `ACTIVE_SYSTEM_PROMPT`): the approach-clustering judge prompt with a conservative merging policy. Used for both the per-chunk Stage 1 calls and the Stage 2 merge call.
-
-**Usage:**
-```bash
-cd evaluate_solutions
-
-# Cluster via OpenAI Batch API (most common; key is read from ../.env)
-python sol_diversity_judge.py input.jsonl \
-    --model gpt-5.2 \
-    --mode batch \
-    --chunk-size 8 \
-    --min-correct 4 \
-    --output-dir outputs/clustering_results
-
-# Cluster via local vLLM model (cost-effective)
-python sol_diversity_judge.py input.jsonl \
-    --api-base http://localhost:8000/v1 \
-    --api-key EMPTY \
-    --model Qwen/Qwen3-30B-A3B \
-    --mode realtime \
-    --num-workers 12 \
-    --chunk-size 10
-```
-
-**Input JSONL format** (one line = one problem):
 ```json
 {
-    "problem": "problem text",
-    "solutions": ["solution1", "solution2", ...],
-    "scores": [1, 0, 1, ...]
+  "problem": "Points $A,B,C,D,E$ and $F$ lie, in that order, on ...",
+  "answer": "\\frac{5}{3}",
+  "response": {
+    "problem_brief": "...",
+    "approaches": [
+      {"name": "...", "core_idea": "...", "plan": ["step 1", "step 2", "..."]},
+      "..."
+    ]
+  },
+  "num_unique_approaches": 4,
+  "judge_result": "EXPLANATION: ..."
 }
 ```
-- `scores`: Correctness of each solution (1=correct, 0=incorrect). If absent, all solutions are used.
-- Problems with fewer correct solutions than `min-correct` are skipped.
 
-**Output**: Per-problem approach group JSON (group_name, core_idea, solution_ids)
+Only `problem` and `answer` are needed for coverage evaluation.
 
 ## Usage
 
-### Setup
-```bash
-pip install -r requirements.txt
+`pip install -r requirements.txt`, then put your OpenAI key in `.env` (`cp .env.example .env`). Correctness scoring and the feasibility check use a locally served Qwen3-4B (`vllm serve Qwen/Qwen3-4B --port 9000`).
 
-# Put your OpenAI API key in the package-level .env (used by every script)
-cp .env.example .env
-# then edit .env:  export OPENAI_API_KEY="your-key-here"
+### 1. Coverage@N
+
+**Coverage@N** is the expected number of distinct solution approaches among N solutions sampled from a model's correct solutions. Given the approach label of each correct solution (from the clustering judge below), `coverage/metrics.py` computes it in closed form:
+
+```python
+from coverage.metrics import coverage_curve
+
+labels = [0, 0, 1, 2, 1, 3, 0, 2]          # approach id of each correct solution (problem-local)
+coverage_curve(labels)                      # {1: 1.0, 2: 1.82, 4: 3.0, 8: 4.0, 16: nan, 32: nan, 64: nan}
 ```
 
-All Python entry points (`coverage/evaluate.py`, `coverage/cluster.py`, `filtering/generate_approaches_batch.py`, `evaluate_solutions/sol_diversity_judge.py`) load `.env` automatically via `python-dotenv`, and the shell scripts under `evaluate_solutions/scripts/` `source` it. A key already exported in your shell takes precedence over `.env`. `.env` is git-ignored; only `.env.example` is committed.
+Coverage@N is `nan` whenever N exceeds the number of correct solutions, so it is never inflated for weak models. Dataset-level numbers are the mean Coverage@N over problems and the area under that curve (`coverage/scripts/aggregate_results.py`).
 
-### Run Coverage Evaluation
+`coverage/evaluate.py` runs the whole procedure for one checkpoint (verify sampled solutions → cluster with the judge → Coverage@N per problem); see `coverage/configs/eval_config.yaml` for the settings used in the paper.
+
+### 2. Clustering solutions by approach
+
+The LLM judge assigns approach labels to correct solutions. Input is one problem per line with `problem`, `solutions` and `scores` (1 = correct, 0 = incorrect). If your generations are not scored yet:
+
 ```bash
-cd coverage
-python evaluate.py \
-    --model-id Qwen2.5-3B \
-    --checkpoint step-500 \
-    --training-method GRPO \
-    --eval-set eval-file \
-    --eval-set-version v1.0 \
-    --generations-file path/to/generations.jsonl \
-    --config configs/eval_config.yaml
+python evaluate_solutions/verify_solutions.py generations.jsonl \
+    --model-name Qwen/Qwen3-4B --api-base http://localhost:9000/v1     # writes generations_scored.jsonl
 ```
 
-### Multi-Approach Filtering
-```bash
-# Stage 1: difficulty split / > 2 approaches (see section 3 for stages 2-4)
-python filtering/filter_by_avg.py --output-path output/
+Then cluster the correct solutions:
 
-# Filter by min n_correct >= 16 across all checkpoints
-python coverage/scripts/filter_by_ncorrect.py \
-    --verification-dir data/verification/ \
-    --min-correct 16 \
-    --output data/filtered_problem_ids.txt
+```bash
+cd evaluate_solutions
+
+# OpenAI Batch API (the setting used in the paper)
+python sol_diversity_judge.py generations_scored.jsonl \
+    --model gpt-5.2 --mode batch --chunk-size 8 --min-correct 4 \
+    --output-dir outputs/clustering_results
+
+# Or a locally served open model, realtime
+python sol_diversity_judge.py generations_scored.jsonl \
+    --api-base http://localhost:8000/v1 --model Qwen/Qwen3-30B-A3B \
+    --mode realtime --num-workers 12 --chunk-size 8
 ```
 
-### Aggregate Results
+Solutions are clustered in chunks of `--chunk-size` and the chunk results are merged in a second call. The output JSON holds, per problem, the approach groups (`group_name`, `core_idea`, `solution_ids`). `scripts/cluster_generations.sh` is the exact command used in the paper.
+
+### 3. Building a multi-approach problem set
+
+Four stages select problems that admit several genuinely different, feasible solution approaches. Each stage reads the previous stage's output.
+
+| Stage | Command | Model | Keeps |
+|---|---|---|---|
+| 1. Difficulty filter | `filtering/filter_by_avg.py` | pass@1 of a reference model | problems of medium difficulty |
+| 2. Approach generation | `filtering/generate_approaches_batch.py` | OpenAI Batch API | K candidate plans per problem |
+| 3. Feasibility check | `filtering/check_feasible_plans.py` | Qwen3-4B solver + judge (vLLM) | plans that Qwen3-4B can execute to a correct answer; problems with ≥ 3 such plans |
+| 4. Uniqueness judge | `filtering/uniqueness_judge.py` | OpenAI (`gpt-5.1`) | problems whose feasible plans contain ≥ 3 mechanism-level distinct approaches |
+
 ```bash
-cd coverage
-python scripts/aggregate_results.py --runs-dir results/runs
-python scripts/aggregate_filtered.py --eval-set eval-file-qwen25-3b --max-n 32
+# Stage 1: split problems by pass@1 (edit input_files inside the script), keep medium ones
+python filtering/filter_by_avg.py --output-path outputs/stage1/
+
+# Stage 2: generate K=4 approach plans per problem -> <input>_with_plans.jsonl
+python filtering/generate_approaches_batch.py --input_file outputs/stage1/medium.jsonl --k 4 --model gpt-5.1
+
+# Stage 3: solve each plan with Qwen3-4B, verify, keep feasible plans -> outputs/stage3/feasible_plans/
+python filtering/check_feasible_plans.py \
+    --input_file outputs/stage1/medium_with_plans.jsonl \
+    --output_file outputs/stage3/feasibility.jsonl \
+    --base_url http://localhost:9000/v1 --verifier-base-url http://localhost:9000/v1 \
+    --n_rollouts 8
+
+# Stage 4: judge approach uniqueness -> outputs/stage4/uniqueness_positive.json
+python filtering/uniqueness_judge.py \
+    --input-file outputs/stage3/feasible_plans/medium_with_plans.jsonl \
+    --output-file outputs/stage4/uniqueness.json \
+    --model gpt-5.1 --reasoning-effort low
 ```
 
-## Dependencies
+Useful options for stage 4: `--realtime` (synchronous calls instead of the Batch API), `--num-votes 3` (majority vote), `--batch-id` / `--raw-results-file` (resume without re-querying), `--eval` (score the judge against a `label` field of `positive` / `negative`).
 
-Install with `pip install -r requirements.txt`.
+## Repository Structure
 
-- Python 3.8+
-- `openai` (OpenAI API client)
-- `python-dotenv` (loads `.env`; optional — `source .env` works without it)
-- `pyyaml`
-- `numpy`
-- `scikit-learn` (ARI, homogeneity, completeness for judge evaluation)
-- `tqdm`
-- `transformers` (chat template for the Qwen3-4B judge prompts)
-- `math-verify` (symbolic answer check before the LLM judge in `check_feasible_plans.py`)
-- `vllm` (not in requirements.txt; needed only to serve the Qwen3-4B solver/judge locally)
+```
+coverage-and-filtering/
+├── data/                            # Multi-approach feasible problem set (train / eval)
+├── coverage/                        # Coverage@N evaluation
+│   ├── evaluate.py                  # Entry point: verify -> cluster -> Coverage@N
+│   ├── metrics.py                   # Coverage@N estimator
+│   ├── configs/eval_config.yaml     # Verifier / judge / eval-set settings
+│   └── scripts/                     # Aggregation (mean Cov@N, AUC) and problem filtering
+├── evaluate_solutions/              # LLM judge for approach clustering
+│   ├── sol_diversity_judge.py       # Clustering judge (batch / realtime)
+│   ├── verify_solutions.py          # Correctness scoring with Qwen3-4B
+│   ├── utils.py                     # Judge prompt
+│   └── scripts/                     # Launch scripts used in the paper
+├── filtering/                       # Four-stage problem filtering pipeline
+│   ├── filter_by_avg.py             # Stage 1
+│   ├── generate_approaches_batch.py # Stage 2
+│   ├── check_feasible_plans.py      # Stage 3
+│   └── uniqueness_judge.py          # Stage 4 (prompt in uniqueness_judge_utils.py)
+├── .env.example                     # OPENAI_API_KEY template
+└── requirements.txt
+```
+
+## Citation
+
+```bibtex
+@misc{lee2026measuringstrategyphrasinggap,
+      title={Are We Measuring Strategy or Phrasing? The Gap Between Surface- and Approach-Level Diversity in LLM Math Reasoning}, 
+      author={Sangmook Lee and Minbeom Kim and Jeonghye Kim and Dohyung Kim and Sojeong Rhee and Kyomin Jung},
+      year={2026},
+      eprint={2606.29985},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2606.29985}, 
+}
+```

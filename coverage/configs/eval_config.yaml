@@ -1,10 +1,9 @@
 # Approach Coverage — evaluation config
 #
 # Consumed by evaluate.py via EvalConfig.from_yaml(...).
-# See CLAUDE.md for the record schema and docs/plan.md for the pipeline.
+# See CLAUDE.md for the record schema.
 
-# Generation parameters used to produce the upstream div-bench
-# generations jsonl. Recorded into every results.jsonl line for
+# Generation parameters used to produce the generations jsonl. Recorded into every results.jsonl line for
 # reproducibility — does NOT trigger sampling here.
 generation:
   temperature: 1.0
@@ -32,26 +31,13 @@ clustering:
   min_correct: 2
   output_dir: "clustering_responses"
 
-# eval_set name → source dataset jsonl (input to Stage 1 generation).
-# Stage 1 reads from here, pre-formats with scripts/format_prompts.py,
-# then writes sampled solutions to the path in eval_sets below.
+# eval_set name -> problem set jsonl (problem / answer per line).
 dataset_sources:
-  dry-run-10: "data/dry_run_10.jsonl"
-  eval-file:  "data/eval_file.jsonl"
-  eval-file-qwen25-3b: "data/eval_file_qwen25_3b.jsonl"
-  eval-file-qwen25-3b-sampled30: "data/eval_file_qwen25_3b_sampled30.jsonl"
-  olympiadbench: "data/olympiadbench.jsonl"
-  aime24: "data/aime24.jsonl"
-  aime25: "data/aime25.jsonl"
-  test-eval-file: "data/test_eval_file.jsonl"
-  test-eval-file-selected150: "data/test_eval_file_selected150.jsonl"
-  math-train-100: "data/math_train_sampled100.jsonl"
-  math-train-500: "data/math_train_sampled500.jsonl"
+  eval:  "../data/eval.jsonl"
+  train: "../data/train.jsonl"
 
-# eval_set name → pre-generated solutions jsonl (output of Stage 1).
-# Stage 2 (evaluate.py) reads from here.
-# NOTE: eval-file output is model-specific — update the path when switching models,
-# or pass --generations-file directly to evaluate.py.
+# eval_set name -> sampled solutions jsonl for that problem set
+# (problem / answer / solutions / pred per line). Generations are model-specific,
+# so either edit these paths per model or pass --generations-file to evaluate.py.
 eval_sets:
-  dry-run-10: "data/generations/Qwen2.5-3B/dry_run_10.jsonl"
-  eval-file:  "data/generations/Qwen2.5-3B/eval_file.jsonl"
+  eval:  "data/generations/<model>/eval.jsonl"
