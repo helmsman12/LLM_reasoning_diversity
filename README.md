@@ -90,11 +90,6 @@ cd evaluate_solutions
 python sol_diversity_judge.py generations_scored.jsonl \
     --model gpt-5.2 --mode batch --chunk-size 8 --min-correct 4 \
     --output-dir outputs/clustering_results
-
-# Or a locally served open model, realtime
-python sol_diversity_judge.py generations_scored.jsonl \
-    --api-base http://localhost:8000/v1 --model Qwen/Qwen3-30B-A3B \
-    --mode realtime --num-workers 12 --chunk-size 8
 ```
 
 Solutions are clustered in chunks of `--chunk-size` and the chunk results are merged in a second call. The output JSON holds, per problem, the approach groups (`group_name`, `core_idea`, `solution_ids`). `scripts/cluster_generations.sh` is the exact command used in the paper.
@@ -108,14 +103,14 @@ Four stages select problems that admit several genuinely different, feasible sol
 | 1. Difficulty filter | `filtering/filter_by_avg.py` | pass@1 of a reference model | problems of medium difficulty |
 | 2. Approach generation | `filtering/generate_approaches_batch.py` | OpenAI Batch API | K candidate plans per problem |
 | 3. Feasibility check | `filtering/check_feasible_plans.py` | Qwen3-4B solver + judge (vLLM) | plans that Qwen3-4B can execute to a correct answer; problems with ≥ 3 such plans |
-| 4. Uniqueness judge | `filtering/uniqueness_judge.py` | OpenAI (`gpt-5.1`) | problems whose feasible plans contain ≥ 3 mechanism-level distinct approaches |
+| 4. Uniqueness judge | `filtering/uniqueness_judge.py` | OpenAI (`gpt-5.2`) | problems whose feasible plans contain ≥ 3 mechanism-level distinct approaches |
 
 ```bash
 # Stage 1: split problems by pass@1 (edit input_files inside the script), keep medium ones
 python filtering/filter_by_avg.py --output-path outputs/stage1/
 
 # Stage 2: generate K=4 approach plans per problem -> <input>_with_plans.jsonl
-python filtering/generate_approaches_batch.py --input_file outputs/stage1/medium.jsonl --k 4 --model gpt-5.1
+python filtering/generate_approaches_batch.py --input_file outputs/stage1/medium.jsonl --k 4 --model gpt-5.2
 
 # Stage 3: solve each plan with Qwen3-4B, verify, keep feasible plans -> outputs/stage3/feasible_plans/
 python filtering/check_feasible_plans.py \
@@ -128,7 +123,7 @@ python filtering/check_feasible_plans.py \
 python filtering/uniqueness_judge.py \
     --input-file outputs/stage3/feasible_plans/medium_with_plans.jsonl \
     --output-file outputs/stage4/uniqueness.json \
-    --model gpt-5.1 --reasoning-effort low
+    --model gpt-5.2 --reasoning-effort low
 ```
 
 Useful options for stage 4: `--realtime` (synchronous calls instead of the Batch API), `--num-votes 3` (majority vote), `--batch-id` / `--raw-results-file` (resume without re-querying), `--eval` (score the judge against a `label` field of `positive` / `negative`).

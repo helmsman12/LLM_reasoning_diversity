@@ -25,7 +25,7 @@ Usage
     python uniqueness_judge.py \\
         --input-file feasible_plans.jsonl \\
         --output-file outputs/uniqueness.json \\
-        --model gpt-5.1 --reasoning-effort low
+        --model gpt-5.2 --reasoning-effort low
 """
 
 import argparse
@@ -520,7 +520,7 @@ def main():
     parser.add_argument("--input-file", type=str,
                         help="Input file (json or jsonl) with problem and response.approaches")
     parser.add_argument("--output-file", type=str, required=True, help="Output JSON file")
-    parser.add_argument("--model", type=str, default="gpt-5.1", help="Judge model (default: gpt-5.1)")
+    parser.add_argument("--model", type=str, default="gpt-5.2", help="Judge model (default: gpt-5.2)")
     parser.add_argument("--reasoning-effort", type=str, default="low",
                         choices=["none", "low", "medium", "high"],
                         help="Reasoning effort for the judge model (default: low)")

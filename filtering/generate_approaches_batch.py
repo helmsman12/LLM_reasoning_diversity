@@ -59,7 +59,7 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Output JSONL with approaches (default: input_file with _with_plans.jsonl)",
     )
-    parser.add_argument("--model", type=str, default="gpt-5.1")
+    parser.add_argument("--model", type=str, default="gpt-5.2")
     parser.add_argument("--k", type=int, default=4)
     parser.add_argument("--max_completion_tokens", type=int, default=32768)
     parser.add_argument("--poll_interval", type=int, default=120)

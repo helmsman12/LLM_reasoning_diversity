@@ -12,11 +12,11 @@ from typing import List, Optional
 # Pricing (USD per token). Batch API prices already include the 50% discount.
 # Update these if you use a different judge model.
 # ---------------------------------------------------------------------------
-GPT_5_1_INPUT_PRICE = 1.25 / 1_000_000 * 0.5
-GPT_5_1_OUTPUT_PRICE = 10.0 / 1_000_000 * 0.5
+GPT_5_2_INPUT_PRICE = 1.75 / 1_000_000 * 0.5
+GPT_5_2_OUTPUT_PRICE = 14.0 / 1_000_000 * 0.5
 
 MODEL_PRICING = {
-    "gpt-5.1": (GPT_5_1_INPUT_PRICE, GPT_5_1_OUTPUT_PRICE),
+    "gpt-5.2": (GPT_5_2_INPUT_PRICE, GPT_5_2_OUTPUT_PRICE),
 }
 
 # A problem is "positive" (kept) when the judge finds at least this many
@@ -24,7 +24,7 @@ MODEL_PRICING = {
 POSITIVE_THRESHOLD = 3
 
 
-def calculate_cost(batch_results: List[dict], model: str = "gpt-5.1") -> dict:
+def calculate_cost(batch_results: List[dict], model: str = "gpt-5.2") -> dict:
     """Sum token usage over batch-format results and convert to USD."""
     total_input_tokens = 0
     total_output_tokens = 0
@@ -34,7 +34,7 @@ def calculate_cost(batch_results: List[dict], model: str = "gpt-5.1") -> dict:
             total_input_tokens += usage.get("prompt_tokens", 0)
             total_output_tokens += usage.get("completion_tokens", 0)
 
-    input_price, output_price = GPT_5_1_INPUT_PRICE, GPT_5_1_OUTPUT_PRICE
+    input_price, output_price = GPT_5_2_INPUT_PRICE, GPT_5_2_OUTPUT_PRICE
     for prefix, (in_p, out_p) in MODEL_PRICING.items():
         if model.startswith(prefix):
             input_price, output_price = in_p, out_p
