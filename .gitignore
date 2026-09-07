@@ -1,0 +1,15 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+
+# run artifacts
+logs/
+coverage/clustering_responses/
+coverage/results/runs/
+coverage/results/all_results.jsonl
+coverage/results/all_results.summary.json
+coverage/data/generations/
+evaluate_solutions/outputs/
