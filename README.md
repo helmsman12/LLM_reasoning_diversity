@@ -86,7 +86,7 @@ For the exact command used in the paper, refer to `scripts/cluster_generations.s
 We measure the approach-level diversity of a policy $\pi$ with **expected coverage** $\mathrm{cov}(N, \pi)$: the expected number of distinct approach clusters observed when sampling $N$ *correct* solutions from $\pi$. For a problem $x$, this is defined over sets $S_x$ of $N$ correct samples,
 
 $$
-\mathrm{cov}_x(N, \pi) \;=\; \mathbb{E}_{S_x}\big[\,|\mathcal{J}(x, S_x)|\,\big], \qquad |S_x| = N ,
+\mathrm{cov}_x(N, \pi) = \mathbb{E}_{S_x}\big[ | \mathcal{J}(x, S_x) | \big], \qquad |S_x| = N ,
 $$
 
 where $\mathcal{J}(x, S_x)$ is the clustering of $S_x$ into approach groups produced by the LLM judge. Coverage captures not only how many approaches a policy covers, but also how evenly it samples across them.
@@ -155,7 +155,8 @@ LLM_reasoning_diversity/
 │   ├── check_feasible_plans.py      # Stage 3
 │   └── uniqueness_judge.py          # Stage 4 (prompt in uniqueness_judge_utils.py)
 ├── .env.example                     # OPENAI_API_KEY template
-└── requirements.txt
+├── requirements.txt
+└── LICENSE
 ```
 
 ## 📝 Citation
@@ -174,3 +175,6 @@ If you found our work helpful, kindly cite our work!
 }
 ```
 
+## 📄 License
+
+This repository is released under the [MIT License](./LICENSE).
