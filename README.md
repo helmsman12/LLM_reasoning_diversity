@@ -14,7 +14,7 @@ Official code and data of the paper [Are We Measuring Strategy or Phrasing? The 
 
 What do we mean by *diversity* in LLM math reasoning? Motivated by recent findings on mode collapse under RLVR and on the value of diverse candidates for test-time scaling, a growing number of works propose diversity-aware training algorithms.
 These methods, however, typically operationalize diversity with surface-level signals such as lexical overlap, embedding distance, or the ratio of distinct equations.
-This leaves open a more fundamental question: *are models exploring genuinely different ways to solve a problem, or merely producing surface-level variants of the same strategy?*, or in terms of diversity metrics, **are we measuring strategy or phrasing?**
+This leaves open a more fundamental question: *are models exploring genuinely different ways to solve a problem, or merely producing surface-level variants of the same strategy?* Or, **are we measuring strategy or phrasing?**
 
 To answer it, we introduce **approach-level diversity**: variation in the underlying solution strategies used to reach a correct answer, beyond differences in wording, notation, or exposition, and measure it with a human-calibrated LLM judge and a set of math problems verified to admit multiple distinct approaches.
 Our analysis shows that conventional diversity metrics are poor proxies for approach-level diversity, and that optimizing them does not broaden the strategies a model explores. Please refer to [our paper](https://arxiv.org/abs/2606.29985) for the full findings!
@@ -56,11 +56,11 @@ Each problem contains a list of possible solving approaches, validated by the pi
 
 ## 🚀 Usage
 
-`pip install -r requirements.txt`, then put your OpenAI key in `.env` (`cp .env.example .env`). Correctness scoring and the feasibility check use a locally served Qwen3-4B (`vllm serve Qwen/Qwen3-4B --port 9000`).
+`pip install -r requirements.txt`, then put your OpenAI key in `.env` 
 
 ### 1. Clustering solutions by approach
 
-The LLM judge assigns approach labels to correct solutions. Input is one problem per line with `problem`, `solutions` and `scores` (1 = correct, 0 = incorrect). If your generations are not scored yet:
+We use an LLM judge to assign approach labels to correct solutions. First, verify the correctness of the solutions:
 
 ```bash
 python evaluate_solutions/verify_solutions.py generations.jsonl \
@@ -79,7 +79,6 @@ python sol_diversity_judge.py generations_scored.jsonl \
 ```
 
 For each problem, the judge returns the observed approach groups and the indexed ids of the correct solutions in each group.
-For the exact command used in the paper, refer to `scripts/cluster_generations.sh`.
 
 ### 2. Definition of Cov@N
 
@@ -107,7 +106,7 @@ To filter for the problems that admit multiple, genuinely distinct solving appro
 
 | Stage                  | Command                                  | Model                      | Keeps                                                                           |
 | ---------------------- | ---------------------------------------- | -------------------------- | ------------------------------------------------------------------------------- |
-| 1. Difficulty filter   | `filtering/filter_by_avg.py`             | pass@1 of a Qwen3-4B model | problems of appropriate difficulty                                              |
+| 1. Difficulty filter   | `filtering/filter_by_avg.py`             | pass@1 of Qwen3-4B         | problems of appropriate difficulty                                              |
 | 2. Approach generation | `filtering/generate_approaches_batch.py` | GPT Judge                  | generates K candidate plans per problem                                         |
 | 3. Feasibility check   | `filtering/check_feasible_plans.py`      | Qwen3-4B solver            | plans that Qwen3-4B can execute to a correct answer                             |
 | 4. Uniqueness judge    | `filtering/uniqueness_judge.py`          | GPT Judge                  | problems whose feasible plans contain more than 3 genuinely distinct approaches |
